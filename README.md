@@ -14,21 +14,48 @@ curl  http://localhost:8080/home
 ./mvnw package
 java -jar target/hello-0.0.1-SNAPSHOT.jar
 
-curl  http://localhost:8080/home
+curl http://localhost:8080/home
 ```
 
 ### Containerize It
 - Create `Dockerfile`
 ```shell
-FROM openjdk:8-jdk-alpine
-RUN addgroup -S spring && adduser -S spring -G spring
-USER spring:spring
-ARG DEPENDENCY=target/dependency
-COPY ${DEPENDENCY}/BOOT-INF/lib /app/lib
-COPY ${DEPENDENCY}/META-INF /app/META-INF
-COPY ${DEPENDENCY}/BOOT-INF/classes /app
-ENTRYPOINT ["java","-cp","app:app/lib/*","hello.Application"]
+FROM openjdk:11
+ARG JAR_FILE=target/*.jar
+COPY ${JAR_FILE} app.jar
+ENTRYPOINT ["java","-jar","/app.jar"]
 ```
 ```shell
 docker build -t ajimenez15/gs-spring-boot-docker .
+```
+
+### Build a Docker Image with Maven
+```shell
+docker login -u ajimenez15
+./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=ajimenez15/gs-spring-boot-docker
+```
+
+### Run the docker 
+```shell
+docker run -dp 8080:8080 -t ajimenez15/gs-spring-boot-docker
+docker ps
+
+curl http://localhost:8080/home
+docker rm -f 4ca96e6d22b8
+```
+- Using Spring Profiles
+```shell
+docker run -e "SPRING_PROFILES_ACTIVE=prod" -dp 8080:8080 -t ajimenez15/gs-spring-boot-docker
+docker ps
+
+curl http://localhost:8080/home
+docker rm -f 4ca96e6d22b8
+```
+- Debugging the Application in a Docker Container
+```shell
+docker run -e "JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,address=5005,server=y,suspend=n" -dp 8080:8080 -t ajimenez15/gs-spring-boot-docker
+docker ps
+
+curl http://localhost:8080/home
+docker rm -f 4ca96e6d22b8
 ```
