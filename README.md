@@ -1,6 +1,7 @@
 # gs-spring-boot-docker
 Getting started spring boot docker
 https://spring.io/guides/gs/spring-boot-docker/
+https://spring.io/guides/topicals/spring-boot-docker
 
 ### Run the application locally
 - Option 1:
@@ -104,4 +105,87 @@ docker ps
 
 curl http://localhost:9000/home
 docker rm -f 042f6d6dbd64
+```
+
+### Faster build
+- Extract the layer of the jar:
+```shell
+mkdir target/dependency
+cd target/dependency
+jar -xf ../*.jar
+```
+- New Dockerfile4
+```shell
+FROM openjdk:11
+VOLUME /tmp
+ARG DEPENDENCY=target/dependency
+COPY ${DEPENDENCY}/BOOT-INF/lib /app/lib
+COPY ${DEPENDENCY}/META-INF /app/META-INF
+COPY ${DEPENDENCY}/BOOT-INF/classes /app
+ENTRYPOINT ["java","-cp","app:app/lib/*","com.example.hello.HelloApplication"]
+```
+- Build and run
+```shell
+docker build -t ajimenez15/gs-spring-boot-docker4 -f Dockerfile4 .
+docker run -p 8080:8080 ajimenez15/gs-spring-boot-docker4
+curl http://localhost:8080/home
+```
+
+### Spring Boot Layer Index
+- Extract the layer of the jar:
+```shell
+mkdir target/extracted
+java -Djarmode=layertools -jar target/*.jar extract --destination target/extracted
+```
+- New Dockerfile5
+```shell
+FROM openjdk:11
+VOLUME /tmp
+ARG EXTRACTED=target/extracted
+COPY ${EXTRACTED}/dependencies/ ./
+COPY ${EXTRACTED}/spring-boot-loader/ ./
+COPY ${EXTRACTED}/snapshot-dependencies/ ./
+COPY ${EXTRACTED}/application/ ./
+ENTRYPOINT ["java","org.springframework.boot.loader.JarLauncher"]
+```
+- Build and run
+```shell
+docker build -t ajimenez15/gs-spring-boot-docker5 -f Dockerfile5 .
+docker run -p 8080:8080 ajimenez15/gs-spring-boot-docker5
+curl http://localhost:8080/home
+```
+
+### Build and deploy with Dockers
+- New Dockerfile6
+```shell
+FROM openjdk:11 as build
+WORKDIR /workspace/app
+
+COPY mvnw .
+COPY .mvn .mvn
+COPY pom.xml .
+COPY src src
+
+RUN ./mvnw install -DskipTests
+RUN mkdir -p target/dependency && (cd target/dependency; jar -xf ../*.jar)
+
+FROM openjdk:11
+VOLUME /tmp
+ARG DEPENDENCY=/workspace/app/target/dependency
+COPY --from=build ${DEPENDENCY}/BOOT-INF/lib /app/lib
+COPY --from=build ${DEPENDENCY}/META-INF /app/META-INF
+COPY --from=build ${DEPENDENCY}/BOOT-INF/classes /app
+ENTRYPOINT ["java","-cp","app:app/lib/*","com.example.hello.HelloApplication"]
+```
+```shell
+docker build -t ajimenez15/gs-spring-boot-docker6 -f Dockerfile6 .
+docker run -p 8080:8080 ajimenez15/gs-spring-boot-docker6
+curl http://localhost:8080/home
+```
+
+### Spring Boot Maven docker plugin
+```shell
+./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=gs-spring-boot-docker7
+docker run -p 8080:8080 -t gs-spring-boot-docker7
+
 ```
